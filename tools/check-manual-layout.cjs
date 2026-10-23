@@ -1,0 +1,63 @@
+const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const vm = require('node:vm');
+const source = fs.readFileSync('app.js', 'utf8');
+const layout = source.slice(source.indexOf('      function arrangeRoleTree('), source.indexOf('      function addAt('));
+const kinds = ['script','person','character','asset','shot-group','shot','storyboard','prompt','asset','cover-group'];
+const nodes = kinds.map((kind, i) => ({dataset:{kind,id:String(i),x:String(1700+i*43),y:String(2900+i*71),autoPosition:'false',assetPath:i===8?'clip.mp4':''},style:{},offsetWidth:300,offsetHeight:100,classList:{contains:()=>false,add(){},remove(){}}}));
+const edges=[[1,2],[2,3],[4,5],[5,6],[6,7],[7,8]].map(([a,b])=>({fromId:String(a),toId:String(b)}));
+const ctx={nodesLayer:{children:nodes},shotLanes:{querySelectorAll:()=>[]},connections:edges,getNode:id=>nodes.find(n=>n.dataset.id===id),quickNodesOfKind:kind=>nodes.filter(n=>n.dataset.kind===kind),quickChildren:(p,kind)=>edges.filter(e=>e.fromId===p.dataset.id).map(e=>nodes[+e.toId]).filter(n=>n.dataset.kind===kind),storyboardLaneNodes:()=>[nodes[7],nodes[8]],isCanvasVideoFile:({name})=>name.endsWith('.mp4'),shotLaneLayoutVersion:2};
+vm.createContext(ctx);vm.runInContext(layout,ctx);
+const positions=nodes.map(n=>[n.dataset.x,n.dataset.y]);
+for(const collapse of [false,true,false])ctx.arrangeCanvasLanes(collapse);
+assert.deepEqual(nodes.map(n=>[n.dataset.x,n.dataset.y]),positions,'manual nodes of all families retain positions');
+nodes[7].dataset.autoPosition='true';ctx.arrangeCanvasLanes(false);
+assert.notDeepEqual([nodes[7].dataset.x,nodes[7].dataset.y],positions[7],'new automatic prompt receives layout');
+assert.equal(Number(nodes[7].dataset.y),Number(nodes[6].dataset.y),'new prompt follows fixed storyboard Y');
+// Simulate the previously rendered rows, then expand an existing manual scene.
+function expansionCase(kind) {
+  const make=(id,kind,x,y,height=100,automatic=false)=>({dataset:{id,kind,x:String(x),y:String(y),autoPosition:String(automatic),assetPath:''},style:{},offsetWidth:300,offsetHeight:height,classList:{contains:()=>false,add(){},remove(){}}});
+  const group=make('g','shot-group',0,800), first=make('s1','shot',400,1000), second=make('s2','shot',450,1300), third=make('s3','shot',500,2000);
+  const b1=make('b1','storyboard',900,1000), b2=make('b2','storyboard',950,1330), b3=make('b3','storyboard',1000,2040);
+  const image=make('i','asset',1500,1000,150), shared=make('shared','asset',1550,1350,150);
+  const fixture=[group,first,second,third,b1,b2,b3,image,shared];
+  const links=[['g','s1'],['g','s2'],['g','s3'],['s1','b1'],['s2','b2'],['s3','b3'],['b1','i'],['b2','shared'],['b3','shared']].map(([fromId,toId])=>({fromId,toId}));
+  const get=id=>fixture.find(n=>n.dataset.id===id);
+  const children=(node,kind)=>links.filter(e=>e.fromId===node.dataset.id).map(e=>get(e.toId)).filter(n=>n.dataset.kind===kind);
+  const related=board=>links.filter(e=>e.fromId===board.dataset.id).map(e=>get(e.toId));
+  let rows;
+  const renderRows=()=>{
+    rows=[first,second,third].map((shot,index,shots)=>{
+      const members=[shot,...children(shot,'storyboard').flatMap(b=>[b,...related(b)])];
+      const top=Math.min(...members.map(n=>+n.dataset.y))-13;
+      const bottom=Math.max(...members.map(n=>+n.dataset.y+n.offsetHeight));
+      return {sceneNode:shot,dataset:{shotId:shot.dataset.id},style:{top:top+'px',height:Math.max(130,bottom-top+20,shots[index+1]?+shots[index+1].dataset.y-13-top-10:0)+'px'}};
+    });
+  };
+  renderRows();
+  const sandbox={nodesLayer:{children:fixture},shotLanes:{querySelectorAll:()=>rows},connections:links,getNode:get,storyboardLaneNodes:related,isCanvasVideoFile:()=>false,shotLaneLayoutVersion:2};
+  vm.createContext(sandbox);vm.runInContext(layout,sandbox);
+  const initial=fixture.map(n=>[n.dataset.x,n.dataset.y]);
+  sandbox.arrangeShotLanes(false);
+  assert.deepEqual(fixture.map(n=>[n.dataset.x,n.dataset.y]),initial,'unrelated layout preserves manual scene overlap and positions');
+  const added=make('new',kind,1500,1200,600,true);fixture.push(added);
+  links.push({fromId:kind==='storyboard'?'s1':'b1',toId:'new'});
+  sandbox.arrangeShotLanes(false);
+  assert.equal(first.dataset.y,'1000','expanded scene stays anchored');
+  assert.ok(+second.dataset.y>=+added.dataset.y+added.offsetHeight+42,'next scene clears new content');
+  const delta=+second.dataset.y-1300;
+  assert.equal(+b2.dataset.y-1330,delta,'manual board keeps its scene offset');
+  assert.equal(+shared.dataset.y-1350,delta,'cross-scene shared node moves once with first owning scene');
+  assert.equal(b2.dataset.x,'950','expansion retains manual X');
+  assert.ok(+third.dataset.y>=+shared.dataset.y+shared.offsetHeight+42,'overflow cascades only as needed');
+  renderRows();const settled=fixture.map(n=>[n.dataset.x,n.dataset.y]);
+  sandbox.arrangeShotLanes(false);
+  assert.deepEqual(fixture.map(n=>[n.dataset.x,n.dataset.y]),settled,'next unrelated edit does not repeat expansion shift');
+  rows=rows.map(row=>({...row,sceneNode:{dataset:{id:row.dataset.shotId}},style:{top:'0px',height:'10px'}}));
+  sandbox.arrangeShotLanes(false);
+  assert.deepEqual(fixture.map(n=>[n.dataset.x,n.dataset.y]),settled,'stale rows from a restored project cannot shift current nodes with reused IDs');
+}
+expansionCase('storyboard');expansionCase('asset');
+const restore=source.slice(source.indexOf('      function restore(savedOverride'),source.indexOf('      function restore(savedOverride')+6000);
+assert.ok(!restore.slice(0,restore.indexOf('      function ',10)).includes('arrangeCanvasLanes('),'restore never rearranges stored coordinates');
+console.log('Manual layout regression passed');

@@ -1,0 +1,75 @@
+{
+  "name": "white-canvas-video-workbench",
+  "version": "0.1.0",
+  "private": true,
+  "description": "剧本画布：面向视频创作的本地无限画布工作台",
+  "main": "main.cjs",
+  "scripts": {
+    "start": "electron .",
+    "dist:win": "electron-builder --win --dir",
+    "dist:win:portable": "electron-builder --win portable",
+    "test": "node tools/run-checks.cjs",
+    "check:publish": "node tools/check-publish.cjs"
+  },
+  "devDependencies": {
+    "electron": "^44.9.3",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "local.whitecanvas.videoworkbench",
+    "productName": "剧本画布",
+    "asar": true,
+    "files": [
+      "index.html",
+      "app.js",
+      "canvas-ui.js",
+      "canvas-layout.js",
+      "storage-policy.cjs",
+      "project-store.cjs",
+      "asset-naming.cjs",
+      "asset-transaction.cjs",
+      "video-storage.cjs",
+      "audio-storage.cjs",
+      "undo-assets.cjs",
+      "reference-library.cjs",
+      "reference-picker.js",
+      "main.cjs",
+      "preview-cache.cjs",
+      "preload.cjs",
+      "package.json",
+      "png-storage.cjs",
+      "data-paths.cjs",
+      "assets/app-icon.ico",
+      "assets/app-icon.png"
+    ],
+    "extraResources": [
+      "canvas-project.schema.json",
+      "project-template.json",
+      "obsidian-to-canvas.md",
+      "LICENSE"
+    ],
+    "win": {
+      "target": [
+        "portable"
+      ],
+      "icon": "assets/app-icon.ico",
+      "signExecutable": false
+    }
+  },
+  "allowScripts": {
+    "electron-winstaller@5.4.0": true
+  },
+  "license": "MIT",
+  "author": "Ginwow",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Ginwow/script-canvas.git"
+  },
+  "homepage": "https://github.com/Ginwow/script-canvas#readme",
+  "bugs": {
+    "url": "https://github.com/Ginwow/script-canvas/issues"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}

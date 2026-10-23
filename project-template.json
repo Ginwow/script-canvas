@@ -1,0 +1,22 @@
+{
+  "format": "white-canvas-video-project",
+  "version": 3,
+  "project": {
+    "title": ""
+  },
+  "synopsis": "",
+  "visualStyle": "",
+  "characters": [],
+  "shots": [],
+  "storyboards": [],
+  "canvas": {
+    "view": {
+      "x": 0,
+      "y": 0,
+      "scale": 1
+    },
+    "nodes": [],
+    "connections": [],
+    "shotLaneLayoutVersion": 2
+  }
+}

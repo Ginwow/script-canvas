@@ -1,0 +1,417 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://white-canvas.local/schemas/video-project-v2.json",
+  "title": "白画布剧本项目（内容、素材和布局）",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "format",
+    "version",
+    "project",
+    "synopsis",
+    "characters",
+    "shots",
+    "storyboards",
+    "canvas"
+  ],
+  "properties": {
+    "format": {
+      "const": "white-canvas-video-project"
+    },
+    "version": {
+      "const": 3
+    },
+    "project": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "title"
+      ],
+      "properties": {
+        "title": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "codex": {
+          "$ref": "#/$defs/codexConversation"
+        }
+      }
+    },
+    "synopsis": {
+      "type": "string",
+      "maxLength": 50000
+    },
+    "visualStyle": {
+      "type": "string",
+      "maxLength": 50000,
+      "description": "项目级画风提示词，生图时始终附加；旧项目可省略，导入后在画风节点补充。"
+    },
+    "characters": {
+      "type": "array",
+      "maxItems": 100,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "name"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/$defs/stableId"
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 300
+          },
+          "setting": {
+            "type": "string",
+            "maxLength": 50000
+          },
+          "referenceImages": {
+            "type": "array",
+            "maxItems": 80,
+            "items": {
+              "$ref": "#/$defs/characterImage"
+            }
+          }
+        }
+      }
+    },
+    "shots": {
+      "description": "场景主节点由程序生成；这里每项是它的子场景，描述时间、时长和画面。提示词与图片属于 storyboards。",
+      "type": "array",
+      "maxItems": 300,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/$defs/stableId"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 300
+          },
+          "time": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "maxLength": 300
+          },
+          "duration": {
+            "type": "string",
+            "maxLength": 300
+          },
+          "description": {
+            "type": "string",
+            "maxLength": 50000
+          }
+        }
+      }
+    },
+    "storyboards": {
+      "description": "每段独立生成片段对应一个镜头节点；同一 shotId 可对应多个镜头，编号在每个场景下重新开始。",
+      "type": "array",
+      "maxItems": 500,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "shotId"
+        ],
+        "properties": {
+          "id": {
+            "$ref": "#/$defs/stableId"
+          },
+          "shotId": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,119}$"
+          },
+          "title": {
+            "type": "string",
+            "maxLength": 300
+          },
+          "prompt": {
+            "type": "string",
+            "maxLength": 50000
+          },
+          "keyframes": {
+            "type": "array",
+            "maxItems": 80,
+            "items": {
+              "$ref": "#/$defs/shotImage"
+            }
+          },
+          "referenceImages": {
+            "type": "array",
+            "maxItems": 80,
+            "items": {
+              "$ref": "#/$defs/shotImage"
+            }
+          }
+        }
+      }
+    },
+    "canvas": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "view",
+        "nodes",
+        "connections"
+      ],
+      "description": "单文件画布快照。首次生成可用空 nodes/connections 由程序自动排版；保存后完整记录实际节点与连线，节点图片使用项目内相对路径，不存 projectPath。",
+      "properties": {
+        "view": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "x",
+            "y",
+            "scale"
+          ],
+          "properties": {
+            "x": {
+              "type": "number"
+            },
+            "y": {
+              "type": "number"
+            },
+            "scale": {
+              "type": "number",
+              "exclusiveMinimum": 0
+            }
+          }
+        },
+        "nodes": {
+          "type": "array",
+          "maxItems": 2000,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "kind",
+              "x",
+              "y"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^(?:__shot-group|[A-Za-z0-9][A-Za-z0-9._-]{0,119})$"
+              },
+              "kind": {
+                "enum": [
+                  "script",
+                  "plot",
+                  "style",
+                  "person",
+                  "shot-group",
+                  "character",
+                  "shot",
+                  "storyboard",
+                  "asset",
+                  "prompt",
+                  "text",
+                  "cover-group",
+                  "video-group",
+                  "bgm-group"
+                ]
+              },
+              "x": {
+                "type": "number"
+              },
+              "y": {
+                "type": "number"
+              },
+              "title": {
+                "type": "string",
+                "maxLength": 300
+              },
+              "fileName": {
+                "type": "string",
+                "maxLength": 1000
+              },
+              "assetPath": {
+                "type": "string",
+                "maxLength": 1000,
+                "description": "素材项目内相对路径；图片支持 PNG/JPG/WebP/GIF，视频支持 MP4/WebM/MOV。视频仅存于 canvas 素材节点，不写入镜头 referenceImages 或 keyframes。 保存时，已绑定镜头的素材按场景XX_镜头XX_参考图XX或视频XX命名；同内容视频共用一份文件。提示词正文另导出 assets/prompts/场景XX_镜头XX_提示词XX.txt。节点 ID 与连接不因文件改名改变。 音频支持 WAV/MP3/M4A/AAC/OGG/FLAC/WebM，使用现有 kind=asset 节点存于 assets/audio/，fileName 保留导入名称；音频仅存于 canvas，不写入角色/镜头 referenceImages 或 keyframes。WebM 位于 assets/audio/ 或程序管理的撤销路径 assets/.undo/audio/ 时为音频，其余 WebM 延续视频含义。音频按内容去重且不参与镜头图片/视频重命名。 镜头(kind=storyboard)可直接连接视频asset，亦可通过提示词连接；两种视频均按所属场景/镜头编号命名。 图片按内容指纹去重，多个节点可共用同一assetPath。角色参考图优先命名为人物标题+两位序号（林晚01.png）；镜头复用同图时直接引用该角色文件，不另存副本。"
+              },
+              "text": {
+                "type": "string",
+                "maxLength": 50000
+              },
+              "includeInChat": {
+                "type": "boolean",
+                "description": "兼容旧项目的上下文勾选记录；当前画布不提供会话功能，不使用此字段发送上下文。"
+              },
+              "duration": {
+                "type": "string",
+                "maxLength": 300
+              },
+              "imageRole": {
+                "type": "string",
+                "maxLength": 100
+              },
+              "autoPosition": {
+                "type": "string",
+                "maxLength": 20,
+                "description": "字符串 false 表示该节点坐标由用户指定，自动布局必须保留；true 允许自动布局。恢复已保存 canvas 时先保留所有坐标，旧节点未提供该字段时按手动坐标处理。"
+              },
+              "collapsed": {
+                "type": "boolean"
+              },
+              "childrenCollapsed": {
+                "type": "boolean"
+              },
+              "width": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "height": {
+                "type": [
+                  "number",
+                  "null"
+                ]
+              },
+              "imageZoom": {
+                "type": "number"
+              },
+              "imagePanX": {
+                "type": "number"
+              },
+              "imagePanY": {
+                "type": "number"
+              }
+            }
+          }
+        },
+        "connections": {
+          "type": "array",
+          "maxItems": 4000,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "fromId",
+              "toId"
+            ],
+            "properties": {
+              "fromId": {
+                "type": "string",
+                "pattern": "^(?:__shot-group|[A-Za-z0-9][A-Za-z0-9._-]{0,119})$"
+              },
+              "toId": {
+                "type": "string",
+                "pattern": "^(?:__shot-group|[A-Za-z0-9][A-Za-z0-9._-]{0,119})$"
+              }
+            }
+          },
+          "description": "实际画布连线；允许用户手动取消连线并保留未连接节点，恢复非空canvas时不得补回用户取消的既有连线。"
+        },
+        "shotLaneLayoutVersion": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 2
+        }
+      }
+    }
+  },
+  "$defs": {
+    "codexConversation": {
+      "description": "可选的历史来源会话记录，仅保存元数据，不用于画布连接、聊天或生图。已有标记可保留。",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "threadId"
+      ],
+      "properties": {
+        "threadId": {
+          "type": "string",
+          "pattern": "^[0-9A-Fa-f]{8}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{4}-[0-9A-Fa-f]{12}$"
+        },
+        "hostId": {
+          "const": "local"
+        },
+        "threadTitle": {
+          "type": "string",
+          "maxLength": 300
+        },
+        "projectName": {
+          "type": "string",
+          "maxLength": 300
+        }
+      }
+    },
+    "stableId": {
+      "type": "string",
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,119}$",
+      "not": {
+        "enum": [
+          "script",
+          "plot",
+          "style",
+          "roles",
+          "__shot-group"
+        ]
+      }
+    },
+    "relativeImagePath": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1000,
+      "pattern": "^(?!/)(?![A-Za-z]:)(?!.*(?:^|/)\\.\\.(?:/|$)).+\\.(?:png|jpe?g|webp|gif)$"
+    },
+    "characterImage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000,
+          "pattern": "^(?!/)(?![A-Za-z]:)(?!.*(?:^|/)\\.\\.(?:/|$)).+\\.(?:png|jpe?g)$"
+        },
+        "label": {
+          "type": "string",
+          "maxLength": 200
+        }
+      }
+    },
+    "shotImage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path"
+      ],
+      "properties": {
+        "path": {
+          "$ref": "#/$defs/relativeImagePath"
+        },
+        "label": {
+          "type": "string",
+          "maxLength": 200
+        },
+        "time": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "maxLength": 80
+        }
+      }
+    }
+  }
+}

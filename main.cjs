@@ -501,6 +501,7 @@ if(ownsSingleInstance) app.whenReady().then(async () => {
   const legacyScripts=LEGACY_PROJECT_ROOT,scripts=PROJECT_ROOT;
   try {await fs.access(scripts);}catch(error){if(error.code!=='ENOENT')throw error;try{await fs.rename(legacyScripts,scripts);}catch(moveError){if(moveError.code!=='ENOENT')throw moveError;}}
   await fs.mkdir(scripts,{recursive:true});
+  projectStore.ROOT=await fs.realpath(scripts);
   const oldReferenceDirectory=path.join(app.getPath('userData'),'reference-library');
   const referenceDirectory=REFERENCE_ROOT;
   await fs.mkdir(referenceDirectory,{recursive:true});

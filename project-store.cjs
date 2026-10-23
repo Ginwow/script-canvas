@@ -6,7 +6,7 @@ const { createHash } = require('node:crypto');
 const { storeVideo } = require('./video-storage.cjs');
 const { storeAudio, isAudioAssetPath } = require('./audio-storage.cjs');
 const { nameStoryboardAssets } = require('./asset-naming.cjs');
-const { PROJECT_ROOT, rebaseManagedPath } = require('./data-paths.cjs');
+const { PROJECT_ROOT, rebaseManagedPath, createRealPathResolver } = require('./data-paths.cjs');
 const ROOT = PROJECT_ROOT;
 const savedMedia = new Map();
 function namingProjection(state) {
@@ -20,12 +20,12 @@ function namingProjection(state) {
 }
 // Stat only: bytes and image fingerprints remain owned by the full naming pass.
 // Inventory also catches changed/deleted prompt exports and newly added duplicates.
-async function mediaSignature(real,state) {
+async function mediaSignature(real,state,resolveReal=createRealPathResolver()) {
   const records=[],seen=new Set();
   async function record(file) {if(seen.has(file))return;seen.add(file);const stat=await fs.stat(file);records.push([file,stat.size,stat.mtimeMs,stat.ctimeMs]);}
   await record(real);
   for(const node of state.nodes.filter(n=>n.kind==='asset'&&n.assetPath)) {
-    const base=path.dirname(node.projectPath||state.projectSource?.path||real),candidate=path.resolve(base,node.assetPath);
+    const base=await resolveReal(path.dirname(node.projectPath||state.projectSource?.path||real)),candidate=path.resolve(base,node.assetPath);
     if(!within(base,candidate))throw new Error('素材路径超出源项目');
     const actual=await fs.realpath(candidate);if(!within(base,actual))throw new Error('素材路径超出源项目');
     await record(actual);
@@ -74,13 +74,15 @@ function projectFromState(state, previous) {
 }
 async function read(file){return JSON.parse(await fs.readFile(file,'utf8'));}
 async function migrate(source, state = null) {
+  const resolveReal=createRealPathResolver();
+  await fs.mkdir(ROOT,{recursive:true});const root=await resolveReal(ROOT);
   source=await rebaseManagedPath(source);
   const real=await fs.realpath(source); await recoverAssets(path.dirname(real)); const project=await read(real);
   if(project.format!=='white-canvas-video-project'||![2,3].includes(project.version))throw new Error('不是有效的画布项目');
   const title=projectFileName(project.project.title);
-  const directory=path.join(ROOT,title),destination=path.join(directory,title+'.json');
+  const directory=path.join(root,title),destination=path.join(directory,title+'.json');
   if(real.toLowerCase()===destination.toLowerCase())return open(real);
-  if(within(ROOT,real) && path.dirname(path.dirname(real))===ROOT) {
+  if(within(root,real) && path.dirname(path.dirname(real))===root) {
     try {await fs.access(destination);return open(destination);}catch(error){if(error.code!=='ENOENT')throw error;}
     const oldDirectory=path.dirname(real);
     if(oldDirectory!==directory) await fs.rename(oldDirectory,directory);
@@ -107,7 +109,7 @@ async function migrate(source, state = null) {
   await atomic(destination,project);
   if(state?.nodes?.length) {
     for(const node of state.nodes.filter(n=>n.kind==='asset'&&n.assetPath&&n.projectPath)) {
-      const assetBase=path.dirname(node.projectPath),candidate=path.resolve(assetBase,node.assetPath),target=path.resolve(directory,node.assetPath);
+      const assetBase=await resolveReal(path.dirname(node.projectPath)),candidate=path.resolve(assetBase,node.assetPath),target=path.resolve(directory,node.assetPath);
       if(!within(assetBase,candidate)||!within(directory,target))throw new Error('画布素材路径无效');
       const actual=await fs.realpath(candidate);if(!within(assetBase,actual))throw new Error('画布素材超出项目');
       if(/\.(mp4|webm|mov)$/i.test(node.assetPath)||isAudioAssetPath(node.assetPath))node.assetPath=await (isAudioAssetPath(node.assetPath)?storeAudio:storeVideo)(directory,await fs.readFile(actual),path.extname(actual));
@@ -119,7 +121,7 @@ async function migrate(source, state = null) {
   return open(destination);
 }
 async function open(file) {
-  const real=await fs.realpath(file);if(!within(ROOT,real)||path.extname(real)!=='.json')throw new Error('项目不在项目库中');
+  const root=await fs.realpath(ROOT),real=await fs.realpath(file);if(!within(root,real)||path.extname(real)!=='.json')throw new Error('项目不在项目库中');
   await recoverAssets(path.dirname(real));
   let project=await read(real);let state=null;
   const legacy=path.join(path.dirname(real),'画布状态.json');
@@ -169,18 +171,18 @@ async function protectHistoryAssets(real, historyAssets, writes, cleanup) {
   }
   return mappings;
 }
-async function save(file,state,historyAssets=[]){file=await rebaseManagedPath(file);const real=await fs.realpath(file);if(!within(ROOT,real)||path.extname(real)!=='.json')return {skipped:true};
+async function save(file,state,historyAssets=[]){const resolveReal=createRealPathResolver();file=await rebaseManagedPath(file,ROOT);const root=await resolveReal(ROOT),real=await resolveReal(file);if(!within(root,real)||path.extname(real)!=='.json')return {skipped:true};
   if(!state||!Array.isArray(state.nodes)||!Array.isArray(state.connections)||state.nodes.length>2000)throw new Error('画布保存数据无效');
   await recoverAssets(path.dirname(real));
   state=structuredClone(state);
   const previous=await read(real);
   const cached=savedMedia.get(real),projection=namingProjection(state);
   savedMedia.delete(real);
-  const unchanged=cached&&cached.projection===projection&&cached.signature===await mediaSignature(real,state);
+  const unchanged=cached&&cached.projection===projection&&cached.signature===await mediaSignature(real,state,resolveReal);
   const priorManagedPaths=state.nodes.filter(n=>n.kind==='asset'&&/^assets\/(generated|videos)\/[^/]+$/.test(n.assetPath || '')).map(n=>n.assetPath);
   const videoAssets=[];
   for(const node of state.nodes.filter(n=>n.kind==='asset'&&(/\.(mp4|webm|mov)$/i.test(n.assetPath || '')||isAudioAssetPath(n.assetPath)))) {
-    const sourceBase=path.dirname(node.projectPath || state.projectSource?.path || real);
+    const sourceBase=await resolveReal(path.dirname(node.projectPath || state.projectSource?.path || real));
     const candidate=path.resolve(sourceBase,node.assetPath);
     if(!within(sourceBase,candidate))throw new Error('视频素材路径超出源项目');
     const actual=await fs.realpath(candidate);
@@ -204,7 +206,7 @@ async function save(file,state,historyAssets=[]){file=await rebaseManagedPath(fi
   try{await remember(real);}catch(error){console.warn('最近项目记录更新失败',error.message);}
   let cleanupSucceeded=true;
   for(const old of cleanup)try{await fs.unlink(path.join(path.dirname(real),old));}catch(error){if(error.code!=='ENOENT'){cleanupSucceeded=false;console.warn('旧素材清理失败',old,error.message);}}
-  if(cleanupSucceeded)try{savedMedia.set(real,{projection:namingProjection(state),signature:await mediaSignature(real,state)});}catch(_){/* A concurrent external edit must leave the next save on the full path. */}
+  if(cleanupSucceeded)try{savedMedia.set(real,{projection:namingProjection(state),signature:await mediaSignature(real,state,resolveReal)});}catch(_){/* A concurrent external edit must leave the next save on the full path. */}
   const finalAssets=state.nodes.filter(n=>n.kind==='asset'&&n.assetPath).map(n=>({id:n.id,assetPath:n.assetPath,projectPath:real,fileName:n.fileName}));
   return {project,videoAssets:finalAssets,historyAssets:historicalMappings};}
 async function remember(file){await atomic(path.join(ROOT,'.last-project.json'),{path:file});}

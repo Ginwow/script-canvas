@@ -28,6 +28,16 @@ const PROJECT_ROOT = path.join(DATA_ROOT, '剧本');
 const LEGACY_PROJECT_ROOT = path.join(DATA_ROOT, '项目');
 const REFERENCE_ROOT = path.join(DATA_ROOT, '参考素材库');
 
+// Keep aliases (including Windows short names) consistent within one operation.
+function createRealPathResolver() {
+  const paths = new Map();
+  return value => {
+    const absolute = path.resolve(value);
+    if (!paths.has(absolute)) paths.set(absolute, fs.promises.realpath(absolute));
+    return paths.get(absolute);
+  };
+}
+
 // Rebase only the known managed layout, never an arbitrary path or traversal.
 async function rebaseManagedPath(source, root = PROJECT_ROOT) {
   if (typeof source !== 'string' || !path.isAbsolute(source)) return source;
@@ -46,4 +56,4 @@ async function rebaseManagedPath(source, root = PROJECT_ROOT) {
   } catch (error) { if (error.code !== 'ENOENT') throw error; return source; }
 }
 
-module.exports = { DATA_ROOT, PROJECT_ROOT, LEGACY_PROJECT_ROOT, REFERENCE_ROOT, resolveDataRoot, rebaseManagedPath };
+module.exports = { DATA_ROOT, PROJECT_ROOT, LEGACY_PROJECT_ROOT, REFERENCE_ROOT, resolveDataRoot, rebaseManagedPath, createRealPathResolver };

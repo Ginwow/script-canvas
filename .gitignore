@@ -73,3 +73,4 @@
 !/.github/dependabot.yml
 !/.github/workflows/ci.yml
 !/index.html
+!/tests/path-alias.test.cjs

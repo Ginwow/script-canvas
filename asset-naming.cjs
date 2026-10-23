@@ -3,6 +3,7 @@ const path = require('node:path');
 const { createHash } = require('node:crypto');
 const { imageFingerprint, rememberImageFingerprint } = require('./png-storage.cjs');
 const { isAudioAssetPath } = require('./audio-storage.cjs');
+const { createRealPathResolver } = require('./data-paths.cjs');
 
 async function writeIfChanged(file, bytes) {
   try { if ((await fs.readFile(file)).equals(bytes)) return; }
@@ -14,6 +15,7 @@ async function writeIfChanged(file, bytes) {
 
 // Gather sources before writing: changing the numbering may swap existing names.
 async function nameStoryboardAssets(base, state, writes = null) {
+  const resolveReal=createRealPathResolver();base=await resolveReal(base);
   const nodes = state.nodes, edges = state.connections, byId = new Map(nodes.map(n => [n.id,n]));
   const children = id => edges.filter(e => e.fromId === id).map(e => byId.get(e.toId)).filter(Boolean);
   const shots = nodes.filter(n => n.kind === 'shot');
@@ -21,7 +23,7 @@ async function nameStoryboardAssets(base, state, writes = null) {
   const number = (title, fallback, label) => String(Number((title || '').match(new RegExp(label+'\\s*0*(\\d+)'))?.[1]) || fallback).padStart(2,'0');
   const imageSources = new Map();
   for (const node of nodes.filter(n=>n.kind==='asset' && /\.(png|jpe?g|webp|gif)$/i.test(n.assetPath || ''))) {
-    const sourceBase = path.dirname(node.projectPath || state.projectSource.path);
+    const sourceBase = await resolveReal(path.dirname(node.projectPath || state.projectSource.path));
     const source = await fs.realpath(path.resolve(sourceBase,node.assetPath));
     const relative = path.relative(sourceBase,source);
     if (relative.startsWith('..') || path.isAbsolute(relative)) throw Error('素材路径超出源项目');
@@ -77,7 +79,7 @@ async function nameStoryboardAssets(base, state, writes = null) {
   for(const entry of entries) {
     if(entry.type === '提示词'){entry.bytes=Buffer.from(entry.node.text || '','utf8');entry.extension='.txt';continue;}
     if (imageSources.has(entry.node.id)) { Object.assign(entry,imageSources.get(entry.node.id)); continue; }
-    const sourceBase=path.dirname(entry.node.projectPath || state.projectSource.path);
+    const sourceBase=await resolveReal(path.dirname(entry.node.projectPath || state.projectSource.path));
     const source=await fs.realpath(path.resolve(sourceBase,entry.node.assetPath));
     const relative=path.relative(sourceBase,source);
     if(relative.startsWith('..') || path.isAbsolute(relative))throw new Error('素材路径超出源项目');

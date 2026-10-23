@@ -4,7 +4,7 @@ const {createRequire}=require('node:module');
 const {createHash}=require('node:crypto');
 
 (async()=>{
- const root=await fs.mkdtemp(path.join(os.tmpdir(),'canvas-history-save-'));
+ const root=await fs.realpath(await fs.mkdtemp(path.join(os.tmpdir(),'canvas-history-save-')));
  try {
   const base=path.join(root,'test'),file=path.join(base,'test.json');
   await fs.mkdir(path.join(base,'assets/videos'),{recursive:true});

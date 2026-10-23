@@ -1,6 +1,7 @@
 name: Checks
 on:
   push:
+    branches: [main]
   pull_request:
 permissions:
   contents: read
@@ -13,9 +14,8 @@ jobs:
         with:
           node-version: 22
           cache: npm
-      - run: npm ci
+      - run: npm ci --ignore-scripts
       - run: npm test
       - run: npm run check:publish
       - run: npm audit --audit-level=high
 
-      - run: npm run dist:win

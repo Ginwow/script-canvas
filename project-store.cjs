@@ -138,14 +138,17 @@ async function list(){await fs.mkdir(ROOT,{recursive:true});const items=[];for(c
 // Preserve only history whose source this transaction will replace or retire.
 // Immutable copies share the media/JSON transaction, so failed saves cannot
 // acknowledge a remap whose bytes were never successfully published.
-async function protectHistoryAssets(real, historyAssets, writes, cleanup) {
+async function protectHistoryAssets(real, historyAssets, writes, cleanup, resolveReal) {
   const base=path.dirname(real),key=value=>value.replace(/\\/g,'/').toLowerCase();
   const replacements=new Map([...writes].map(([relative,bytes])=>[key(relative),bytes]));
   const retired=new Set(cleanup.map(key)),mappings=[],pinned=new Map();
   for(const item of Array.isArray(historyAssets)?historyAssets:[]) {
-    if(typeof item?.projectPath!=='string'||typeof item.assetPath!=='string'||path.resolve(item.projectPath).toLowerCase()!==real.toLowerCase())continue;
+    if(typeof item?.projectPath!=='string'||typeof item.assetPath!=='string'||!path.isAbsolute(item.projectPath))continue;
     const relative=item.assetPath.replace(/\\/g,'/'),identity=key(relative);
     if(!/^assets\//i.test(relative)||/^assets\/\.undo\//i.test(relative)||(!replacements.has(identity)&&!retired.has(identity)))continue;
+    let historyProject;
+    try{historyProject=await resolveReal(item.projectPath);}catch(error){if(['ENOENT','ENOTDIR'].includes(error.code))continue;throw error;}
+    if(historyProject.toLowerCase()!==real.toLowerCase())continue;
     const candidate=path.resolve(base,relative);if(!within(base,candidate))throw new Error('历史素材路径超出项目');
     let pinnedPath=pinned.get(identity);
     if(!pinnedPath) {
@@ -167,7 +170,7 @@ async function protectHistoryAssets(real, historyAssets, writes, cleanup) {
       }
       pinned.set(identity,pinnedPath);
     }
-    mappings.push({projectPath:real,assetPath:item.assetPath,pinnedPath});
+    mappings.push({projectPath:item.projectPath,assetPath:item.assetPath,pinnedPath});
   }
   return mappings;
 }
@@ -197,7 +200,7 @@ async function save(file,state,historyAssets=[]){const resolveReal=createRealPat
   const named=unchanged?{cleanup:[]}:await nameStoryboardAssets(path.dirname(real),state,writes);
   const retainedPaths=new Set(state.nodes.map(n=>n.assetPath?.toLowerCase()).filter(Boolean));
   const cleanup=[...new Set([...named.cleanup,...priorManagedPaths.filter(p=>!retainedPaths.has(p.toLowerCase()))])];
-  const historicalMappings=await protectHistoryAssets(real,historyAssets,writes,cleanup);
+  const historicalMappings=await protectHistoryAssets(real,historyAssets,writes,cleanup,resolveReal);
   const project=projectFromState(state,previous);
   writes.set(path.basename(real),Buffer.from(JSON.stringify(project,null,2)));
   await commitAssets(path.dirname(real),writes);

@@ -2,6 +2,12 @@
 
 用于视频创作的 Windows 本地无限画布。把剧本、场景、镜头、角色、参考图、视频及 BGM 放在同一张画布里，查看关系并整理素材。
 
+## 下载使用（Windows）
+
+[下载 Windows 解压即用版](https://github.com/Ginwow/script-canvas/releases/latest)
+
+在 Releases 的 Assets 中下载 `ScriptCanvas-v0.1.0-Windows-x64.zip`，完整解压后双击 `剧本画布.exe`。无需安装 Node.js；请保留同目录的运行文件。`Source code` 是开发用源码，不是可直接运行的程序。发行包不含作者的个人工程与素材。
+
 ## 功能
 
 - 剧本 → 场景 → 镜头的层级结构，支持新增、删除及顺序编号。
@@ -70,4 +76,3 @@ npm run dist:win:portable
 ## 许可证
 
 [MIT](LICENSE)。依赖遵循各自的许可证；打包产物中的 Electron/Chromium 第三方许可证应一并保留。
-
